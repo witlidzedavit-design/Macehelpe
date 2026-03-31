@@ -1,1 +1,54 @@
+package net.fabricmc.example;
+
+import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.minecraft.item.Items;
+import net.minecraft.util.hit.HitResult;
+import net.minecraft.entity.player.PlayerInventory;
+
+public class MaceHelperClient implements ClientModInitializer {
+    private int originalSlot = -1;
+    private int swapBackTicks = -1;
+
+    @Override
+    public void onInitializeClient() {
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (client.player == null) return;
+
+            // 1. Handle swapping back to the original weapon after the hit
+            if (swapBackTicks > 0) {
+                swapBackTicks--;
+                if (swapBackTicks == 0 && originalSlot != -1) {
+                    client.player.getInventory().selectedSlot = originalSlot;
+                    originalSlot = -1;
+                }
+            }
+
+            // 2. Detect if falling and looking at an entity
+            if (client.player.fallDistance > 1.5f && swapBackTicks <= 0) {
+                HitResult hit = client.crosshairTarget;
+                
+                if (hit != null && hit.getType() == HitResult.Type.ENTITY) {
+                    int maceSlot = findMace(client.player.getInventory());
+                    
+                    // 3. Auto-swap to the Mace slot
+                    if (maceSlot != -1 && client.player.getInventory().selectedSlot != maceSlot) {
+                        originalSlot = client.player.getInventory().selectedSlot;
+                        client.player.getInventory().selectedSlot = maceSlot;
+                        
+                        // Stay on Mace for 5 ticks (0.25s) to ensure the hit registers
+                        swapBackTicks = 5; 
+                    }
+                }
+            }
+        });
+    }
+
+    private int findMace(PlayerInventory inventory) {
+        for (int i = 0; i < 9; i++) {
+            if (inventory.getStack(i).isOf(Items.MACE)) return i;
+        }
+        return -1;
+    }
+}
 
